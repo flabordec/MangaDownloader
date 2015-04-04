@@ -1,0 +1,152 @@
+﻿<Window x:Class="MangaDownloader.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:my="clr-namespace:MangaDownloader"
+        xmlns:i="clr-namespace:System.Windows.Interactivity;assembly=System.Windows.Interactivity"
+        Title="MainWindow" Height="350" Width="525">
+    
+    <Window.DataContext>
+        <my:DownloadContext />
+    </Window.DataContext>
+
+    <i:Interaction.Triggers>
+        <i:EventTrigger EventName="Loaded">
+            <i:InvokeCommandAction Command="{Binding Path=UpdateMangasCommand}" />
+        </i:EventTrigger>
+    </i:Interaction.Triggers>
+
+    <Grid VerticalAlignment="Stretch" HorizontalAlignment="Stretch">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition/>
+        </Grid.RowDefinitions>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition/>
+            <ColumnDefinition/>
+        </Grid.ColumnDefinitions>
+
+        <DockPanel Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="2">
+            <Label Content="Source URL:" DockPanel.Dock="Left" Width="150"/>
+            <TextBox Text="{Binding Path=SourceUrl}"/>
+        </DockPanel>
+        <DockPanel Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2">
+            <Label Content="Destination Directory:" DockPanel.Dock="Left" Width="150" />
+            <TextBox Text="{Binding Path=DestinationDirectory}"/>
+        </DockPanel>
+        
+        <Button Content="Begin Downloading" Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="2" Command="{Binding Path=DownloadCommand}"/>
+
+        <DockPanel Grid.Row="3" Grid.Column="0" Grid.ColumnSpan="2">
+            <Label Content="Total Progress:" DockPanel.Dock="Left" Width="150" />
+            <ProgressBar Minimum="0" Maximum="{Binding Path=DownloadsTotal, Mode=OneWay}" Value="{Binding Path=DownloadedCount}">
+                <ProgressBar.ToolTip>
+                    <StackPanel>
+                        <TextBlock FontWeight="Bold">Download Progress</TextBlock>
+                        <TextBlock>
+                            <TextBlock.Text>
+                                <MultiBinding StringFormat="{}Files downloaded: {0:#,##0} / {1:#,##0}">
+                                    <Binding Path="DownloadedCount" />
+                                    <Binding Path="DownloadsTotal" />
+                                </MultiBinding>
+                            </TextBlock.Text>
+                        </TextBlock>
+                    </StackPanel>
+                </ProgressBar.ToolTip>
+            </ProgressBar>
+        </DockPanel>
+        <TreeView 
+            Grid.Row="4" Grid.Column="0" Grid.ColumnSpan="2"
+            HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+            HorizontalContentAlignment="Stretch"
+            BorderThickness="2"
+            ItemsSource="{Binding Path=Mangas}">
+            
+            <TreeView.ItemTemplate>
+                <HierarchicalDataTemplate ItemsSource="{Binding Path=Chapters}">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition />
+                            <RowDefinition />
+                        </Grid.RowDefinitions>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition />
+                            <ColumnDefinition />
+                        </Grid.ColumnDefinitions>
+                        <Grid.ContextMenu>
+                            <ContextMenu>
+                                <MenuItem Header="Download" Command="{Binding Path=DownloadCommand}" />
+                            </ContextMenu>
+                        </Grid.ContextMenu>
+                        <Image Grid.Row="0" Grid.Column="0" Grid.RowSpan="2" Source="{Binding Path=ImagePath}"/>
+                        <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding Path=Title}" FontWeight="Bold"/>
+                        <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding Path=Address}"/>
+                    </Grid>
+                    
+                    <HierarchicalDataTemplate.ItemTemplate>
+                        <!-- Chapter template -->
+                        <HierarchicalDataTemplate ItemsSource="{Binding Path=Pages}">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition />
+                                    <RowDefinition />
+                                </Grid.RowDefinitions>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition />
+                                    <ColumnDefinition />
+                                </Grid.ColumnDefinitions>
+                                <Grid.ContextMenu>
+                                    <ContextMenu>
+                                        <MenuItem Header="Download" Command="{Binding Path=DownloadCommand}" />
+                                    </ContextMenu>
+                                </Grid.ContextMenu>
+                                <Image Grid.Row="0" Grid.Column="0" Grid.RowSpan="2" Source="{Binding Path=ImagePath}" Width="16"/>
+                                <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding Path=Title}" FontWeight="Bold"/>
+                                <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding Path=Address}"/>
+                            </Grid>
+
+                            <!-- Image template -->
+                            <HierarchicalDataTemplate.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Margin="0,2" Name="DownloadJobPanel">
+                                        <Grid.ToolTip>
+                                            <StackPanel>
+                                                <TextBlock FontWeight="Bold" >Downloading</TextBlock>
+                                                <TextBlock Text="{Binding Path=Address}" />
+                                                <TextBlock>
+                                                    <TextBlock.Text>
+                                                        <MultiBinding StringFormat="{}Bytes downloaded: {0:#,##0} / {1:#,##0}">
+                                                            <Binding Path="BytesDownloaded" />
+                                                            <Binding Path="BytesTotal" />
+                                                        </MultiBinding>
+                                                    </TextBlock.Text>
+                                                </TextBlock>
+                                            </StackPanel>
+                                        </Grid.ToolTip>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="16"/>
+                                            <ColumnDefinition Width="100"/>
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <Grid.ContextMenu>
+                                            <ContextMenu>
+                                                <MenuItem Header="Open File" Command="{Binding Path=OpenFileCommand}" CommandParameter="{Binding Path=DestinationPath}" />
+                                                <MenuItem Header="Open In Explorer" Command="{Binding Path=OpenInExplorerCommand}" CommandParameter="{Binding Path=DestinationPath}" />
+                                                <MenuItem Header="Copy Download Address" Command="{Binding Path=CopyCommand}" CommandParameter="{Binding Path=Address}" />
+                                            </ContextMenu>
+                                        </Grid.ContextMenu>
+                                        <Image Grid.Column="0" Source="{Binding Path=ImagePath}"/>
+                                        <ProgressBar Grid.Column="1" Minimum="0" Maximum="100" Value="{Binding Path=Progress}"/>
+                                        <TextBlock Grid.Column="2" Text="{Binding Path=Title}" />
+                                    </Grid>
+                                </DataTemplate>
+                            </HierarchicalDataTemplate.ItemTemplate>
+                        </HierarchicalDataTemplate>
+                    </HierarchicalDataTemplate.ItemTemplate>
+                </HierarchicalDataTemplate>
+            </TreeView.ItemTemplate>
+        </TreeView>
+    </Grid>
+</Window>
