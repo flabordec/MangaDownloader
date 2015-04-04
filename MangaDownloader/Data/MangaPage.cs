@@ -55,6 +55,7 @@ namespace MangaDownloader.Data
 			{
 				SetProperty(ref mProgress, value);
 				OnPropertyChanged(() => this.Done);
+				OnPropertyChanged(() => this.ImagePath);
 			}
 		}
 
@@ -105,7 +106,10 @@ namespace MangaDownloader.Data
 
 		[NotMapped]
 		public readonly bool mIsNew;
-		public bool IsNew { get { return mIsNew; } }
+		public bool IsNew
+		{
+			get { return mIsNew; }
+		}
 
 		[NotMapped]
 		public bool Done
@@ -273,6 +277,8 @@ namespace MangaDownloader.Data
 			var handler = this.DownloadCompleted;
 			if (handler != null)
 				handler(sender, e);
+
+			this.Progress = 100;
 		}
 
 		private void DownloadProgressChanged(long bytesDownloaded, long bytesTotal)

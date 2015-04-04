@@ -82,11 +82,15 @@ namespace MangaDownloader.Data
 		{
 			foreach(Chapter chapter in e.NewItems)
 				chapter.ChapterDownloaded += chapter_ChapterDownloaded;
+
+			OnPropertyChanged(() => this.State);
+			OnPropertyChanged(() => this.ImagePath);
 		}
 
 		void chapter_ChapterDownloaded(object sender, ChapterDownloadedEventArgs e)
 		{
 			OnPropertyChanged(() => this.State);
+			OnPropertyChanged(() => this.ImagePath);
 		}
 
 		private void OnDownload()

@@ -102,11 +102,15 @@ namespace MangaDownloader.Data
 		{
 			foreach (MangaPage item in e.NewItems)
 				item.DownloadCompleted += item_DownloadCompleted;
+
+			OnPropertyChanged(() => this.State);
+			OnPropertyChanged(() => this.ImagePath);
 		}
 
 		void item_DownloadCompleted(object sender, System.ComponentModel.AsyncCompletedEventArgs e)
 		{
 			OnPropertyChanged(() => this.State);
+			OnPropertyChanged(() => this.ImagePath);
 		}
 
 		private void OnDownload()
