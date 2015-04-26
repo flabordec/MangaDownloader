@@ -19,7 +19,6 @@ namespace MangaDownloader.Data
 	public class MangaPage : ErrorHandlingBindableBase
 	{
 		[DataAnnotations.Key]
-		[DatabaseGeneratedAttribute(DatabaseGeneratedOption.Identity)]
 		public long Id { get; set; }
 
 		public event AsyncCompletedEventHandler DownloadCompleted;
@@ -116,6 +115,7 @@ namespace MangaDownloader.Data
 		{
 			get { return mProgress == 100; }
 		}
+
 
 		public MangaPage()
 			: this(null, null, null, false) { }

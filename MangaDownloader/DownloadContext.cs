@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.ComponentModel;
+using System.Data.Entity;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -123,6 +124,9 @@ namespace MangaDownloader
 
 	class DownloadContext : ErrorHandlingBindableBase
 	{
+		public DownloadDbContext DatabaseContext { get; set; }
+
+
 		public DelegateCommand DownloadCommand { get; private set; }
 		public DelegateCommand UpdateMangasCommand { get; private set; }
 
@@ -175,21 +179,21 @@ namespace MangaDownloader
 
 		public DownloadContext()
 		{
-			this.Mangas = new ObservableCollection<Manga>();
+			DatabaseContext = new DownloadDbContext();
+			//DatabaseContext.Database.Log = Console.Write;
 			
-
 			DownloadedCount = 0;
 			DownloadsTotal = 0;
 			DownloaderSingleton.Instance.QueuedDownloads += Instance_QueuedDownloads;
 			DownloaderSingleton.Instance.FinishedDownload += Instance_FinishedDownload;
-			
+
 			string userDir = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
 			//this.SourceUrl = "http://m.mangatown.com/manga/fairy_tail/";
 			this.SourceUrl = "http://m.mangatown.com/manga/trash/";
 			this.DestinationDirectory = Path.Combine(userDir, "Downloads");
 
 			this.IsParsingNewContent = false;
-			
+
 			this.DownloadCommand = new DelegateCommand(
 				this.OnDownload,
 				this.CanDownload);
@@ -227,16 +231,13 @@ namespace MangaDownloader
 			this.IsParsingNewContent = true;
 			try
 			{
-				using (DownloadDbContext databaseContext = new DownloadDbContext())
-				{
-					var mangas = from manga in databaseContext.Mangas.Include("Chapters.Pages")
-								 select manga;
+				await DatabaseContext.Mangas.Include("Chapters.Pages").LoadAsync();
+				this.Mangas = DatabaseContext.Mangas.Local;
 
-					foreach (Manga manga in mangas)
-					{
-						this.Mangas.Add(manga);
-						await AddMangaImagesDownloadJobs(manga.Address);
-					}
+				foreach (Manga manga in this.Mangas)
+				{
+					manga.Chapters = manga.Chapters;
+					await AddMangaImagesDownloadJobs(manga.Address);
 				}
 			}
 			finally
@@ -254,62 +255,64 @@ namespace MangaDownloader
 		{
 			using (WebClient client = new WebClient())
 			{
-				using (DownloadDbContext databaseContext = new DownloadDbContext())
+				string html = await DownloadHelper.RetryFunction(
+					() => client.DownloadStringTaskAsync(mangaUrl),
+					(ex) => this.ErrorsContainer.SetErrors(() => this.Mangas, new ValidationResult[] { new ValidationResult(false, ex) })
+				);
+
+				HtmlDocument document = new HtmlDocument();
+				document.LoadHtml(html);
+
+				string mangaTitle = document.DocumentNode.SelectSingleNode("//h1[@class='title-top']").InnerText.Trim();
+				Manga manga = (from m in DatabaseContext.Mangas
+								where m.Title == mangaTitle
+								select m).SingleOrDefault();
+				if (manga == null)
 				{
-					//databaseContext.Database.Log = Console.Write;
+					manga = new Manga(mangaTitle, this.SourceUrl);
 
-					string html = await DownloadHelper.RetryFunction(
-						() => client.DownloadStringTaskAsync(mangaUrl),
-						(ex) => this.ErrorsContainer.SetErrors(() => this.Mangas, new ValidationResult[] { new ValidationResult(false, ex) })
-					);
+					this.Mangas.Add(manga);
+					DatabaseContext.Mangas.Add(manga);
 
-					HtmlDocument document = new HtmlDocument();
-					document.LoadHtml(html);
-
-					string mangaTitle = document.DocumentNode.SelectSingleNode("//h1[@class='title-top']").InnerText.Trim();
-					Manga manga = (from m in this.Mangas
-								   where m.Title == mangaTitle
-								   select m).SingleOrDefault();
-					if (manga == null)
-					{
-						manga = new Manga(mangaTitle, this.SourceUrl);
-						
-						this.Mangas.Add(manga);
-						databaseContext.Mangas.Add(manga);
-
-						await databaseContext.SaveChangesAsync();
-					}
-
-					HtmlNode chapterList = document.DocumentNode.SelectSingleNode("//ul[@class='chapter_list']");
-					foreach (HtmlNode chapterNode in chapterList.SelectNodes("li/a"))
-					{
-						string chapterUrl = chapterNode.GetAttributeValue("href", "");
-						string pageChapterTitle = chapterNode.InnerText.Trim();
-						string indexString = pageChapterTitle.Substring(mangaTitle.Length + 1);
-						double index = double.Parse(indexString);
-						string chapterTitle = string.Format("Chapter {0:000.#}", index);
-
-						Chapter chapter = (from c in manga.Chapters
-										   where c.Title == chapterTitle
-										   select c).SingleOrDefault();
-						if (chapter == null)
-						{
-							chapter = new Chapter(chapterTitle, chapterUrl);
-							manga.Chapters.Add(chapter);
-							databaseContext.Chapters.Add(chapter);
-
-							await databaseContext.SaveChangesAsync();
-
-							await AddChapterImagesDownloadJobs(manga, chapter, databaseContext);
-						}
-					}
-
-					
+					await DatabaseContext.SaveChangesAsync();
 				}
+
+				HtmlNode chapterList = document.DocumentNode.SelectSingleNode("//ul[@class='chapter_list']");
+				foreach (HtmlNode chapterNode in chapterList.SelectNodes("li/a"))
+				{
+					string chapterUrl = chapterNode.GetAttributeValue("href", "");
+					string pageChapterTitle = chapterNode.InnerText.Trim();
+					string indexString = pageChapterTitle.Substring(mangaTitle.Length + 1);
+					double index = double.Parse(indexString);
+					string chapterTitle = string.Format("Chapter {0:000.#}", index);
+
+					Chapter chapter = (from c in manga.Chapters
+										where c.Title == chapterTitle
+										select c).SingleOrDefault();
+					if (chapter == null)
+					{
+						chapter = Chapter.Factory(DatabaseContext, chapterTitle, chapterUrl);
+
+						int i = 0;
+						string newName = chapter.Title;
+						for (; i < manga.Chapters.Count; i++)
+						{
+							string currName = manga.Chapters[i].Title;
+							if (newName.CompareTo(currName) > 0)
+								break;
+						}
+						manga.Chapters.Add(chapter);
+						DatabaseContext.Chapters.Add(chapter);
+
+						await AddChapterImagesDownloadJobs(manga, chapter);
+						await DatabaseContext.SaveChangesAsync();
+					}
+				}
+				
 			}
 		}
 
-		private async Task AddChapterImagesDownloadJobs(Manga manga, Chapter chapter, DownloadDbContext databaseContext)
+		private async Task AddChapterImagesDownloadJobs(Manga manga, Chapter chapter)
 		{
 			using (WebClient client = new WebClient())
 			{
@@ -342,20 +345,19 @@ namespace MangaDownloader
 						for (; i < chapter.Pages.Count; i++)
 						{
 							string currName = chapter.Pages[i].Title;
-							if (newName.CompareTo(currName) < 0)
+							if (newName.CompareTo(currName) > 0)
 								break;
 						}
 
 						chapter.Pages.Insert(i, page);
-						databaseContext.MangaPages.Add(page);
+						DatabaseContext.MangaPages.Add(page);
 					}
-					await databaseContext.SaveChangesAsync();
 				}
 			}
 		}
 
 	}
 
-	
-	
+
+
 }

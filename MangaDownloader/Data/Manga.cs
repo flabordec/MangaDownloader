@@ -16,7 +16,6 @@ namespace MangaDownloader.Data
 	public class Manga : BindableBase
 	{
 		[Key]
-		[DatabaseGeneratedAttribute(DatabaseGeneratedOption.Identity)]
 		public long Id { get; set; }
 
 		[NotMapped]

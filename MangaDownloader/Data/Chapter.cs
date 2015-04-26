@@ -29,7 +29,6 @@ namespace MangaDownloader.Data
 		public event EventHandler<ChapterDownloadedEventArgs> ChapterDownloaded;
 
 		[Key]
-		[DatabaseGeneratedAttribute(DatabaseGeneratedOption.Identity)]
 		public long Id { get; set; }
 
 		[NotMapped]
@@ -48,6 +47,7 @@ namespace MangaDownloader.Data
 			get { return mAddress; }
 			private set { SetProperty(ref mAddress, value); }
 		}
+
 
 		private ObservableCollection<MangaPage> mPages;
 		public virtual ObservableCollection<MangaPage> Pages
@@ -96,6 +96,14 @@ namespace MangaDownloader.Data
 				this.OnDownload,
 				this.CanDownload
 				);
+		}
+
+		internal static Chapter Factory(DownloadDbContext dbContext, string title, string address)
+		{
+			Chapter chapter = dbContext.Chapters.Create();
+			chapter.Title = title;
+			chapter.Address = address;
+			return chapter;
 		}
 
 		void Pages_CollectionChanged(object sender, NotifyCollectionChangedEventArgs e)
